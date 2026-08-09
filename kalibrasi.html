@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalibrasi FSR - Smart Insole</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;max-width:520px;margin:0 auto}
+  h1{font-size:19px;margin-bottom:4px}
+  h2{font-size:14px;margin:0 0 8px}
+  p.sub{color:#94a3b8;font-size:13px;margin-top:0}
+  a{color:#60a5fa}
+  .status{font-size:12px;text-align:center;margin-bottom:12px}
+  .status.ok{color:#4ade80}
+  .status.bad{color:#f87171}
+  .card{background:#1e293b;border-radius:10px;padding:14px;margin-bottom:14px}
+  .infobox{background:#0f172a;border-radius:8px;padding:10px;font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.6}
+  .infobox b{color:#e2e8f0}
+  ol.petunjuk{font-size:13px;color:#cbd5e1;padding-left:20px;line-height:1.7;margin:0}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .row label{flex:1;font-size:12px;color:#94a3b8}
+  .row input{width:100px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:12px}
+  .liveval{display:flex;justify-content:space-between;background:#0f172a;border-radius:8px;padding:8px 10px;font-size:12px;color:#94a3b8;margin-bottom:8px}
+  .liveval b{color:#e2e8f0;font-size:13px}
+  button{padding:9px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:bold;width:100%;cursor:pointer;margin-top:6px;font-size:13px}
+  button.secondary{background:#334155}
+  button.small{width:auto;padding:4px 10px;margin:0;font-size:11px;background:#475569}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+  th{color:#94a3b8;text-align:right;font-weight:normal;padding:4px 4px;border-bottom:1px solid #334155}
+  th:first-child, td:first-child{text-align:left}
+  td{padding:4px 4px;text-align:right;border-bottom:1px solid #1e293b}
+  .kosong{color:#64748b;font-size:12px;text-align:center;padding:8px 0}
+  .hasilAB{background:#0f172a;border-radius:8px;padding:10px;margin-top:8px;font-size:13px}
+  .hasilAB .kurang{color:#f59e0b}
+  .hasilAB .cukup{color:#4ade80}
+  .preview{font-size:12px;color:#94a3b8;margin-top:6px}
+  .preview b{color:#e2e8f0}
+</style>
+</head>
+<body>
+
+<p class="sub"><a href="index.html">&lsaquo; kembali ke dashboard</a></p>
+<h1>Kalibrasi FSR - Smart Insole</h1>
+<p class="sub">Halaman ini khusus buat menghitung nilai <b>A</b> (slope) dan <b>B</b> (intercept) tiap sensor tekanan, biar angka kPa di dashboard utama akurat. Hasilnya otomatis tersimpan dan dipakai dashboard utama, tidak perlu ketik ulang manual.</p>
+
+<div class="card">
+  <h2>Cara pakai (ringkas)</h2>
+  <ol class="petunjuk">
+    <li>Sambungkan BLE di bawah (atau isi kolom mV manual kalau belum sempat sambung).</li>
+    <li>Untuk tiap sensor (Hallux / Metatarsal1 / Tumit): <b>kosongkan dulu</b> (tidak ditekan sama sekali), isi berat = 0, klik "Tangkap titik".</li>
+    <li>Taruh beban yang <b>diketahui beratnya</b> (contoh: botol air 1kg, 2kg, 5kg) di atas sensor, satu per satu, tiap ganti beban klik "Tangkap titik" lagi. Minimal 2 titik, disarankan 3-4 titik dengan berat bervariasi (jangan yang mirip-mirip beratnya).</li>
+    <li>Nilai A & B otomatis dihitung dan muncul di bawah tabel tiap sensor.</li>
+    <li>Cek "Luas kontak" di bawah sudah sesuai ukuran puck/insert yang dipakai.</li>
+    <li>Klik "Simpan semua ke kalibrasi utama" di paling bawah, lalu buka/refresh dashboard utama.</li>
+  </ol>
+</div>
+
+<div class="infobox" id="nilaiAktif">Nilai kalibrasi aktif sekarang: memuat...</div>
+<p style="font-size:11px;color:#64748b;margin:-6px 0 12px">Progres titik kalibrasi di halaman ini otomatis tersimpan di browser - aman kalau tab di-refresh/ditutup tidak sengaja. <a href="#" onclick="resetSemuaTitik();return false;" style="color:#f87171">Hapus semua progres &amp; mulai ulang</a></p>
+
+<div class="card" style="text-align:center">
+  <button onclick="connectBle()">Sambungkan via Bluetooth (BLE)</button>
+  <div class="status" id="bleStatus">BLE: belum tersambung</div>
+  <p style="font-size:11px;color:#64748b;margin:6px 0 0">Kalau BLE belum tersambung, kolom "mV" di tiap sensor di bawah bisa diisi manual (misal dari Serial Monitor / app BLE terminal lain).</p>
+</div>
+
+<div class="card">
+  <div class="row"><label>Luas kontak (cm&sup2;)</label><input id="globalArea" type="number" step="any" value="1.13"></div>
+  <p style="font-size:11px;color:#64748b;margin:0">Luas area puck/insert yang menekan permukaan FSR - bukan hasil kalibrasi beban, tapi ukuran fisik (diameter puck). Dipakai bareng utk ketiga sensor.</p>
+</div>
+
+<div class="card" id="kartu_fsr1">
+  <h2>FSR1 - Hallux (HA)</h2>
+  <div class="liveval">
+    <span>mV mentah (auto dari BLE / boleh diisi manual)</span>
+    <input id="mv_fsr1" type="number" step="any" style="width:80px;padding:4px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px">
+  </div>
+  <div class="liveval"><span>Konduktansi G (&micro;S) saat ini</span><b id="g_fsr1">-</b></div>
+  <div class="row"><label>Berat beban sekarang (kg)</label><input id="berat_fsr1" type="number" step="any" value="0"></div>
+  <button onclick="tangkapTitik(1)">+ Tangkap titik kalibrasi</button>
+  <button class="secondary" onclick="resetTitik(1)">Hapus semua titik sensor ini</button>
+  <table id="tabel_fsr1"><thead><tr><th>Berat (kg)</th><th>mV</th><th>G (&micro;S)</th><th>F (N)</th><th></th></tr></thead><tbody></tbody></table>
+  <div class="hasilAB" id="hasilAB_fsr1">Belum ada titik kalibrasi.</div>
+  <div class="preview" id="preview_fsr1"></div>
+</div>
+
+<div class="card" id="kartu_fsr2">
+  <h2>FSR2 - Metatarsal 1 (M1)</h2>
+  <div class="liveval">
+    <span>mV mentah (auto dari BLE / boleh diisi manual)</span>
+    <input id="mv_fsr2" type="number" step="any" style="width:80px;padding:4px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px">
+  </div>
+  <div class="liveval"><span>Konduktansi G (&micro;S) saat ini</span><b id="g_fsr2">-</b></div>
+  <div class="row"><label>Berat beban sekarang (kg)</label><input id="berat_fsr2" type="number" step="any" value="0"></div>
+  <button onclick="tangkapTitik(2)">+ Tangkap titik kalibrasi</button>
+  <button class="secondary" onclick="resetTitik(2)">Hapus semua titik sensor ini</button>
+  <table id="tabel_fsr2"><thead><tr><th>Berat (kg)</th><th>mV</th><th>G (&micro;S)</th><th>F (N)</th><th></th></tr></thead><tbody></tbody></table>
+  <div class="hasilAB" id="hasilAB_fsr2">Belum ada titik kalibrasi.</div>
+  <div class="preview" id="preview_fsr2"></div>
+</div>
+
+<div class="card" id="kartu_fsr3">
+  <h2>FSR3 - Tumit (HE)</h2>
+  <div class="liveval">
+    <span>mV mentah (auto dari BLE / boleh diisi manual)</span>
+    <input id="mv_fsr3" type="number" step="any" style="width:80px;padding:4px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px">
+  </div>
+  <div class="liveval"><span>Konduktansi G (&micro;S) saat ini</span><b id="g_fsr3">-</b></div>
+  <div class="row"><label>Berat beban sekarang (kg)</label><input id="berat_fsr3" type="number" step="any" value="0"></div>
+  <button onclick="tangkapTitik(3)">+ Tangkap titik kalibrasi</button>
+  <button class="secondary" onclick="resetTitik(3)">Hapus semua titik sensor ini</button>
+  <table id="tabel_fsr3"><thead><tr><th>Berat (kg)</th><th>mV</th><th>G (&micro;S)</th><th>F (N)</th><th></th></tr></thead><tbody></tbody></table>
+  <div class="hasilAB" id="hasilAB_fsr3">Belum ada titik kalibrasi.</div>
+  <div class="preview" id="preview_fsr3"></div>
+</div>
+
+<div class="card">
+  <button onclick="simpanKeUtama()">Simpan semua ke kalibrasi utama</button>
+  <p style="font-size:11px;color:#64748b;margin:6px 0 0">Menyimpan A/B (dan luas kontak) ke penyimpanan yang sama dipakai dashboard utama (index.html). Titik-titik kalibrasi di tabel di atas hanya sementara di halaman ini (hilang kalau di-refresh) - yang tersimpan permanen cuma hasil akhir A &amp; B.</p>
+</div>
+
+<div class="card">
+  <h2>Hasil kalibrasi (bisa disalin)</h2>
+  <textarea id="outputKalibrasi" readonly rows="16" style="width:100%;box-sizing:border-box;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:8px;padding:8px;font-family:monospace;font-size:11px;resize:vertical"></textarea>
+  <button onclick="salinOutput()">Salin ke clipboard</button>
+  <p style="font-size:11px;color:#4ade80;margin:6px 0 0;min-height:14px" id="salinStatus"></p>
+  <p style="font-size:11px;color:#64748b;margin:0">Update otomatis tiap kali ada titik ditambah/dihapus. Berguna kalau mau simpan sebagai catatan, pindah ke browser/HP lain, atau ditempel ke chat kalau butuh dicek lagi.</p>
+</div>
+
+<script>
+const VCC = 3300.0, RM = 10000.0;
+
+function mvKeG(mv){
+  if (isNaN(mv) || mv < 1 || mv >= VCC) return 0;
+  const r = RM * (VCC / mv - 1.0);
+  return 1e6 / r;
+}
+
+// titik[i] = daftar {beratKg, mv, g, f} yang sudah ditangkap utk FSR ke-i (1/2/3)
+const titik = { 1: [], 2: [], 3: [] };
+
+function hitungRegresi(poin){
+  const n = poin.length;
+  if (n < 2) return null;
+  let sumG=0, sumF=0, sumGF=0, sumG2=0;
+  for (const p of poin) { sumG+=p.g; sumF+=p.f; sumGF+=p.g*p.f; sumG2+=p.g*p.g; }
+  const denom = n*sumG2 - sumG*sumG;
+  if (denom === 0) return null; // semua titik G-nya sama persis, tidak bisa dapat slope
+  const A = (n*sumGF - sumG*sumF) / denom;
+  const B = (sumF - A*sumG) / n;
+  return { A, B };
+}
+
+function renderTabel(i){
+  const tbody = document.querySelector('#tabel_fsr' + i + ' tbody');
+  tbody.innerHTML = '';
+  if (titik[i].length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="kosong">Belum ada titik. Kosongkan sensor (0 kg) lalu klik "Tangkap titik".</td></tr>';
+    return;
+  }
+  titik[i].forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + p.beratKg.toFixed(2) + '</td><td>' + p.mv.toFixed(0) + '</td><td>' +
+      p.g.toFixed(1) + '</td><td>' + p.f.toFixed(2) + '</td>' +
+      '<td><button class="small" onclick="hapusTitik(' + i + ',' + idx + ')">hapus</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function hitungDanTampilkanAB(i){
+  const hasil = hitungRegresi(titik[i]);
+  const el = document.getElementById('hasilAB_fsr' + i);
+  if (!hasil) {
+    el.innerHTML = titik[i].length === 0
+      ? 'Belum ada titik kalibrasi.'
+      : '<span class="kurang">Butuh minimal 2 titik dengan G berbeda-beda utk hitung A &amp; B (baru ada ' + titik[i].length + ').</span>';
+  } else {
+    el.innerHTML = '<span class="cukup">A = ' + hasil.A.toFixed(5) + ' N/&micro;S &nbsp;|&nbsp; B = ' + hasil.B.toFixed(4) + ' N</span>' +
+      (Math.abs(hasil.B) > 1 ? '<br><span class="kurang">B agak besar - kalau titik 0kg sudah diambil, coba tambah titik dgn berat lebih bervariasi.</span>' : '');
+  }
+  perbaruiPreview(i);
+  perbaruiOutput();
+}
+
+function perbaruiPreview(i){
+  const mv = parseFloat(document.getElementById('mv_fsr' + i).value);
+  const g = mvKeG(mv);
+  document.getElementById('g_fsr' + i).innerText = isNaN(mv) ? '-' : g.toFixed(1);
+
+  const hasil = hitungRegresi(titik[i]);
+  const previewEl = document.getElementById('preview_fsr' + i);
+  if (!hasil || isNaN(mv)) { previewEl.innerText = ''; return; }
+  const area = parseFloat(document.getElementById('globalArea').value) || 1.13;
+  let f = hasil.A * g + hasil.B;
+  if (f < 0) f = 0;
+  const kpa = (f / (area * 1e-4)) / 1000;
+  previewEl.innerHTML = 'Preview pakai A/B di atas + mV sekarang: <b>' + kpa.toFixed(1) + ' kPa</b>';
+}
+
+// Titik kalibrasi disimpan sementara ke localStorage tiap kali berubah, supaya
+// tidak hilang kalau tab di-refresh/ditutup tidak sengaja (sebelumnya cuma di
+// memori JS makanya hilang). Ini TIDAK sama dengan 'insoleSettings' (yang cuma
+// menyimpan hasil akhir A/B) - key ini menyimpan titik mentahnya.
+const KEY_TITIK_SEMENTARA = 'kalibrasiTitikSementara';
+
+function simpanTitikSementara(){
+  try { localStorage.setItem(KEY_TITIK_SEMENTARA, JSON.stringify(titik)); } catch(e){}
+}
+
+function muatTitikSementara(){
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY_TITIK_SEMENTARA));
+    if (saved) {
+      for (const i of [1, 2, 3]) { if (Array.isArray(saved[i])) titik[i] = saved[i]; }
+    }
+  } catch(e){}
+}
+
+function tangkapTitik(i){
+  const mvEl = document.getElementById('mv_fsr' + i);
+  const beratEl = document.getElementById('berat_fsr' + i);
+  const mv = parseFloat(mvEl.value);
+  const beratKg = parseFloat(beratEl.value);
+  if (isNaN(mv)) { alert('Isi/pastikan ada nilai mV dulu (sambungkan BLE atau isi manual).'); return; }
+  if (isNaN(beratKg) || beratKg < 0) { alert('Isi berat beban dalam kg (boleh 0 utk kondisi kosong).'); return; }
+  const g = mvKeG(mv);
+  const f = beratKg * 9.81;
+  titik[i].push({ beratKg, mv, g, f });
+  renderTabel(i);
+  hitungDanTampilkanAB(i);
+  simpanTitikSementara();
+}
+
+function hapusTitik(i, idx){
+  titik[i].splice(idx, 1);
+  renderTabel(i);
+  hitungDanTampilkanAB(i);
+  simpanTitikSementara();
+}
+
+function resetTitik(i){
+  if (titik[i].length && !confirm('Hapus semua titik kalibrasi utk sensor ini?')) return;
+  titik[i] = [];
+  renderTabel(i);
+  hitungDanTampilkanAB(i);
+  simpanTitikSementara();
+}
+
+function resetSemuaTitik(){
+  const totalTitik = titik[1].length + titik[2].length + titik[3].length;
+  if (totalTitik > 0 && !confirm('Hapus SEMUA titik kalibrasi (HA, M1, HE)? Tidak bisa dibatalkan.')) return;
+  titik[1] = []; titik[2] = []; titik[3] = [];
+  renderTabel(1); renderTabel(2); renderTabel(3);
+  hitungDanTampilkanAB(1); hitungDanTampilkanAB(2); hitungDanTampilkanAB(3);
+  simpanTitikSementara();
+}
+
+function tampilkanNilaiAktif(){
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('insoleSettings')) || {}; } catch(e){}
+  const fmt = v => (v === undefined || v === null || isNaN(v)) ? '-' : Number(v).toFixed(v < 1 ? 5 : 3);
+  document.getElementById('nilaiAktif').innerHTML =
+    'Nilai kalibrasi aktif sekarang (dipakai dashboard utama): <b>HA</b> A=' + fmt(s.fa1) + ' B=' + fmt(s.fb1) +
+    ' &nbsp;|&nbsp; <b>M1</b> A=' + fmt(s.fa2) + ' B=' + fmt(s.fb2) +
+    ' &nbsp;|&nbsp; <b>HE</b> A=' + fmt(s.fa3) + ' B=' + fmt(s.fb3) +
+    ' &nbsp;|&nbsp; luas=' + fmt(s.area) + ' cm&sup2;';
+  if (s.area !== undefined) document.getElementById('globalArea').value = s.area;
+}
+
+function bangunOutput(){
+  const nama = { 1: 'FSR1 - Hallux (HA)', 2: 'FSR2 - Metatarsal1 (M1)', 3: 'FSR3 - Tumit (HE)' };
+  const area = parseFloat(document.getElementById('globalArea').value) || 1.13;
+  let teks = '=== Hasil Kalibrasi FSR - Smart Insole ===\n';
+  teks += 'Dibuat: ' + new Date().toLocaleString('id-ID') + '\n\n';
+
+  const nilai = {};
+  for (const i of [1, 2, 3]) {
+    const hasil = hitungRegresi(titik[i]);
+    teks += nama[i] + ':\n';
+    teks += '  Jumlah titik: ' + titik[i].length + '\n';
+    if (hasil) {
+      teks += '  A = ' + hasil.A.toFixed(6) + ' N/uS\n';
+      teks += '  B = ' + hasil.B.toFixed(6) + ' N\n\n';
+      nilai['fa' + i] = Number(hasil.A.toFixed(6));
+      nilai['fb' + i] = Number(hasil.B.toFixed(6));
+    } else {
+      teks += '  (belum cukup titik - butuh minimal 2 titik dgn G berbeda)\n\n';
+    }
+  }
+  teks += 'Luas kontak: ' + area + ' cm2\n\n';
+  teks += '--- JSON (format sama dgn yg dipakai localStorage dashboard utama) ---\n';
+  teks += JSON.stringify({ ...nilai, area }, null, 2);
+  return teks;
+}
+
+function perbaruiOutput(){
+  document.getElementById('outputKalibrasi').value = bangunOutput();
+}
+
+async function salinOutput(){
+  const teks = document.getElementById('outputKalibrasi').value;
+  const statusEl = document.getElementById('salinStatus');
+  try {
+    await navigator.clipboard.writeText(teks);
+    statusEl.innerText = 'Tersalin ke clipboard.';
+  } catch (e) {
+    const ta = document.getElementById('outputKalibrasi');
+    ta.select();
+    document.execCommand('copy');
+    statusEl.innerText = 'Tersalin (lewat select manual, clipboard API tidak tersedia).';
+  }
+  setTimeout(() => { statusEl.innerText = ''; }, 3000);
+}
+
+function simpanKeUtama(){
+  const hasil1 = hitungRegresi(titik[1]);
+  const hasil2 = hitungRegresi(titik[2]);
+  const hasil3 = hitungRegresi(titik[3]);
+  if ((!hasil1 || !hasil2 || !hasil3)) {
+    const kurang = [!hasil1 && 'HA', !hasil2 && 'M1', !hasil3 && 'HE'].filter(Boolean).join(', ');
+    if (!confirm('Sensor ' + kurang + ' belum punya cukup titik kalibrasi - nilai A/B lamanya TIDAK akan diubah. Lanjut simpan sisanya saja?')) return;
+  }
+  const area = parseFloat(document.getElementById('globalArea').value) || 1.13;
+  let existing = {};
+  try { existing = JSON.parse(localStorage.getItem('insoleSettings')) || {}; } catch(e){}
+  const updated = { ...existing, area };
+  if (hasil1) { updated.fa1 = hasil1.A; updated.fb1 = hasil1.B; }
+  if (hasil2) { updated.fa2 = hasil2.A; updated.fb2 = hasil2.B; }
+  if (hasil3) { updated.fa3 = hasil3.A; updated.fb3 = hasil3.B; }
+  localStorage.setItem('insoleSettings', JSON.stringify(updated));
+  tampilkanNilaiAktif();
+  alert('Tersimpan. Buka/refresh dashboard utama supaya kalibrasi baru dipakai.');
+}
+
+['fsr1','fsr2','fsr3'].forEach((_, idx) => {
+  const i = idx + 1;
+  document.getElementById('mv_fsr' + i).addEventListener('input', () => perbaruiPreview(i));
+});
+document.getElementById('globalArea').addEventListener('input', () => { perbaruiPreview(1); perbaruiPreview(2); perbaruiPreview(3); perbaruiOutput(); simpanAreaSementara(); });
+
+function simpanAreaSementara(){
+  const area = document.getElementById('globalArea').value;
+  try { localStorage.setItem('kalibrasiAreaSementara', area); } catch(e){}
+}
+
+muatTitikSementara();
+tampilkanNilaiAktif(); // isi globalArea dari kalibrasi tersimpan (kalau ada) dulu
+try {
+  // lalu timpa dgn area yg sedang diedit sesi ini (kalau ada) - prioritas lebih
+  // tinggi krn itu progres terakhir yg belum sempat disimpan ke kalibrasi utama
+  const areaTersimpan = localStorage.getItem('kalibrasiAreaSementara');
+  if (areaTersimpan !== null) document.getElementById('globalArea').value = areaTersimpan;
+} catch(e){}
+
+renderTabel(1); renderTabel(2); renderTabel(3);
+hitungDanTampilkanAB(1); hitungDanTampilkanAB(2); hitungDanTampilkanAB(3);
+perbaruiOutput();
+
+// ==========================================================================
+// BLE (sama seperti dashboard utama) - hanya dipakai utk isi mV FSR otomatis
+// ==========================================================================
+const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_CHAR_TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+let bleDevice = null, bleChar = null;
+
+function setBleStatus(teks, ok){
+  const el = document.getElementById('bleStatus');
+  el.innerText = 'BLE: ' + teks;
+  el.className = 'status ' + (ok ? 'ok' : 'bad');
+}
+
+async function connectBle(){
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth tidak didukung browser ini. Pakai Chrome/Edge (desktop atau Android), dan buka halaman lewat http://localhost atau HTTPS, bukan file://.');
+    return;
+  }
+  try {
+    setBleStatus('mencari perangkat...', true);
+    bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE_UUID] }] });
+    bleDevice.addEventListener('gattserverdisconnected', () => setBleStatus('terputus', false));
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+    bleChar = await service.getCharacteristic(BLE_CHAR_TX_UUID);
+    await bleChar.startNotifications();
+    bleChar.addEventListener('characteristicvaluechanged', onBleData);
+    setBleStatus('tersambung ke ' + (bleDevice.name || 'Smart Insole BLE'), true);
+  } catch (e) {
+    setBleStatus('gagal konek (' + e.message + ')', false);
+  }
+}
+
+function isiJikaTidakFokus(id, val){
+  if (val === undefined || isNaN(val)) return;
+  const el = document.getElementById(id);
+  if (document.activeElement === el) return; // jangan timpa saat lagi diketik manual
+  el.value = val.toFixed(0);
+}
+
+function onBleData(event){
+  const teks = new TextDecoder().decode(event.target.value);
+  const d = {};
+  for (const bagian of teks.split(',')) {
+    const [k, v] = bagian.split(':');
+    if (k && v !== undefined) d[k] = parseFloat(v);
+  }
+  isiJikaTidakFokus('mv_fsr1', d.F1);
+  isiJikaTidakFokus('mv_fsr2', d.F2);
+  isiJikaTidakFokus('mv_fsr3', d.F3);
+  perbaruiPreview(1); perbaruiPreview(2); perbaruiPreview(3);
+}
+</script>
+</body>
+</html>

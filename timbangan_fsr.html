@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timbangan FSR - Smart Insole</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;max-width:520px;margin:0 auto}
+  h1{font-size:19px;margin-bottom:4px}
+  h2{font-size:14px;margin:0 0 8px}
+  p.sub{color:#94a3b8;font-size:13px;margin-top:0}
+  a{color:#60a5fa}
+  .status{font-size:12px;text-align:center;margin-bottom:12px}
+  .status.ok{color:#4ade80}
+  .status.bad{color:#f87171}
+  .card{background:#1e293b;border-radius:10px;padding:14px;margin-bottom:14px}
+  .infobox{background:#0f172a;border-radius:8px;padding:10px;font-size:12px;color:#94a3b8;margin-bottom:12px;line-height:1.6}
+  .infobox b{color:#e2e8f0}
+  ol.petunjuk{font-size:13px;color:#cbd5e1;padding-left:20px;line-height:1.7;margin:0}
+  button{padding:9px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:bold;width:100%;cursor:pointer;margin-top:6px;font-size:13px}
+  button.secondary{background:#334155}
+  .sensorcard{background:#1e293b;border-radius:10px;padding:16px;margin-bottom:14px;border:1px solid #334155;transition:border-color .2s}
+  .sensorcard.stabil{border-color:#4ade80}
+  .sensorhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .sensorhead h2{margin:0}
+  .tagstabil{font-size:11px;padding:2px 8px;border-radius:999px;background:#334155;color:#94a3b8}
+  .tagstabil.on{background:#166534;color:#4ade80}
+  .beratbesar{font-size:40px;font-weight:bold;text-align:center;margin:6px 0;font-variant-numeric:tabular-nums}
+  .beratunit{font-size:16px;color:#94a3b8;font-weight:normal}
+  .detail{display:flex;justify-content:space-between;font-size:11px;color:#64748b;border-top:1px solid #334155;padding-top:8px;margin-top:4px}
+  .detail span b{color:#94a3b8;display:block;font-size:13px;margin-top:2px}
+  .kosong{text-align:center;color:#64748b;font-size:13px;padding:20px 0}
+</style>
+</head>
+<body>
+
+<p class="sub"><a href="index.html">&lsaquo; kembali ke dashboard</a></p>
+<h1>Timbangan FSR - Smart Insole</h1>
+<p class="sub">Pantau FSR seperti timbangan digital, buat verifikasi kalibrasi A/B dari <a href="kalibrasi.html">kalibrasi.html</a>. Sambungkan ke firmware <b>test_fsr_timbangan.ino</b> lewat BLE.</p>
+
+<div class="card">
+  <h2>Cara pakai</h2>
+  <ol class="petunjuk">
+    <li>Pastikan ESP32 sudah di-upload firmware <b>test_fsr_timbangan.ino</b>.</li>
+    <li>Klik "Sambungkan via Bluetooth" di bawah, pilih perangkat "FSR Timbangan BLE".</li>
+    <li>Kosongkan dulu sensor (tanpa beban) - angka tiap kartu harus dekat 0 kg.</li>
+    <li>Taruh beban yang <b>sudah diketahui beratnya</b> di atas satu sensor, tunggu sampai kartunya bertanda <b style="color:#4ade80">STABIL</b> (border hijau), lalu bandingkan angka besar dengan berat asli beban.</li>
+    <li>Cocok/dekat -> lanjut coba beban lain. Meleset jauh -> pertimbangkan kalibrasi ulang sensor itu.</li>
+  </ol>
+</div>
+
+<div class="card" style="text-align:center">
+  <button onclick="connectBle()">Sambungkan via Bluetooth (BLE)</button>
+  <div class="status" id="bleStatus">BLE: belum tersambung</div>
+  <p style="font-size:11px;color:#64748b;margin:6px 0 0">Butuh Chrome/Edge (desktop atau Android), dibuka lewat http://localhost atau HTTPS - bukan file://.</p>
+</div>
+
+<div id="daftarSensor">
+  <div class="kosong">Belum ada data - sambungkan BLE dulu.</div>
+</div>
+
+<script>
+const NAMA_SENSOR = { 1: 'FSR1 - Hallux (HA)', 2: 'FSR2 - Metatarsal1 (M1)', 3: 'FSR3 - Tumit (HE)' };
+const STABIL_TOLERANSI_KG = 0.02; // selisih antar sampel di bawah ini dianggap diam
+const STABIL_JUMLAH_SAMPEL = 5;   // harus diam selama N sampel berturut-turut
+
+const state = {
+  1: { v: null, g: null, wMentah: null, wHalus: null, riwayat: [], stabil: false },
+  2: { v: null, g: null, wMentah: null, wHalus: null, riwayat: [], stabil: false },
+  3: { v: null, g: null, wMentah: null, wHalus: null, riwayat: [], stabil: false }
+};
+
+function cekStabil(s){
+  s.riwayat.push(s.wHalus);
+  if (s.riwayat.length > STABIL_JUMLAH_SAMPEL) s.riwayat.shift();
+  if (s.riwayat.length < STABIL_JUMLAH_SAMPEL) { s.stabil = false; return; }
+  const min = Math.min(...s.riwayat), max = Math.max(...s.riwayat);
+  s.stabil = (max - min) <= STABIL_TOLERANSI_KG;
+}
+
+function renderSemua(){
+  const wadah = document.getElementById('daftarSensor');
+  wadah.innerHTML = '';
+  for (const i of [1, 2, 3]) {
+    const s = state[i];
+    if (s.wHalus === null) continue;
+    const div = document.createElement('div');
+    div.className = 'sensorcard' + (s.stabil ? ' stabil' : '');
+    div.innerHTML =
+      '<div class="sensorhead"><h2>' + NAMA_SENSOR[i] + '</h2>' +
+      '<span class="tagstabil' + (s.stabil ? ' on' : '') + '">' + (s.stabil ? 'STABIL' : 'membaca...') + '</span></div>' +
+      '<div class="beratbesar">' + s.wHalus.toFixed(3) + '<span class="beratunit"> kg</span></div>' +
+      '<div class="detail">' +
+        '<span>mV mentah<b>' + s.v.toFixed(0) + '</b></span>' +
+        '<span>Konduktansi G<b>' + s.g.toFixed(1) + ' &micro;S</b></span>' +
+        '<span>Berat mentah<b>' + s.wMentah.toFixed(3) + ' kg</b></span>' +
+      '</div>';
+    wadah.appendChild(div);
+  }
+  if (wadah.innerHTML === '') wadah.innerHTML = '<div class="kosong">Belum ada data - sambungkan BLE dulu.</div>';
+}
+
+// ==========================================================================
+// BLE (sama seperti kalibrasi.html/index.html) - baca notify dari
+// test_fsr_timbangan.ino, format: V1:..,G1:..,WM1:..,W1:..,V2:...,... dst
+// ==========================================================================
+const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_CHAR_TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+let bleDevice = null, bleChar = null;
+
+function setBleStatus(teks, ok){
+  const el = document.getElementById('bleStatus');
+  el.innerText = 'BLE: ' + teks;
+  el.className = 'status ' + (ok ? 'ok' : 'bad');
+}
+
+async function connectBle(){
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth tidak didukung browser ini. Pakai Chrome/Edge (desktop atau Android), dan buka halaman lewat http://localhost atau HTTPS, bukan file://.');
+    return;
+  }
+  try {
+    setBleStatus('mencari perangkat...', true);
+    bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE_UUID] }] });
+    bleDevice.addEventListener('gattserverdisconnected', () => setBleStatus('terputus', false));
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+    bleChar = await service.getCharacteristic(BLE_CHAR_TX_UUID);
+    await bleChar.startNotifications();
+    bleChar.addEventListener('characteristicvaluechanged', onBleData);
+    setBleStatus('tersambung ke ' + (bleDevice.name || 'FSR Timbangan BLE'), true);
+  } catch (e) {
+    setBleStatus('gagal konek (' + e.message + ')', false);
+  }
+}
+
+function onBleData(event){
+  const teks = new TextDecoder().decode(event.target.value);
+  const d = {};
+  for (const bagian of teks.split(',')) {
+    const [k, v] = bagian.split(':');
+    if (k && v !== undefined) d[k] = parseFloat(v);
+  }
+  for (const i of [1, 2, 3]) {
+    const v = d['V' + i], g = d['G' + i], wm = d['WM' + i], w = d['W' + i];
+    if (v === undefined || w === undefined) continue;
+    const s = state[i];
+    s.v = v; s.g = g; s.wMentah = wm; s.wHalus = w;
+    cekStabil(s);
+  }
+  renderSemua();
+}
+</script>
+</body>
+</html>

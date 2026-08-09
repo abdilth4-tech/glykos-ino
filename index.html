@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapping Kaki - Smart Insole</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;max-width:480px;margin:0 auto}
+  h1{font-size:19px;margin-bottom:4px}
+  p.sub{color:#94a3b8;font-size:13px;margin-top:0}
+  .status{font-size:12px;text-align:center;margin-bottom:12px}
+  .status.ok{color:#4ade80}
+  .status.bad{color:#f87171}
+  .statusbanner{font-size:14px;font-weight:bold;text-align:center;padding:9px;border-radius:8px;margin-bottom:12px}
+  .statusbanner.aman{background:#14532d;color:#4ade80}
+  .statusbanner.perhatian{background:#78350f;color:#fbbf24}
+  .statusbanner.risiko{background:#7f1d1d;color:#f87171}
+  .baselinerow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#94a3b8;margin-bottom:6px}
+  .card{background:#1e293b;border-radius:10px;padding:14px;margin-bottom:14px}
+  .footwrap{background:#1e293b;border-radius:10px;padding:8px;margin-bottom:14px}
+  .legend{display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:6px}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .infogrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .infobox{background:#0f172a;border-radius:8px;padding:10px;text-align:center}
+  .infobox .lbl{font-size:11px;color:#94a3b8}
+  .infobox .val{font-size:18px;font-weight:bold;margin-top:2px}
+  details{margin-top:4px}
+  summary{cursor:pointer;color:#94a3b8;font-size:13px;padding:6px 0}
+  .settingrow{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .settingrow label{flex:1;font-size:12px;color:#94a3b8}
+  .settingrow input{width:90px;padding:6px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:12px}
+  button{padding:10px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:bold;width:100%;cursor:pointer;margin-top:6px}
+  input#espUrl{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:13px;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<h1>Mapping Kaki - Smart Insole</h1>
+<p class="sub">Live dari ESP32 lewat Bluetooth (BLE). Butuh Chrome/Edge (desktop atau Android) dan halaman ini dibuka lewat http://localhost atau HTTPS - Web Bluetooth tidak jalan kalau dibuka langsung dari file (file://).</p>
+
+<div class="statusbanner aman" id="statusBanner">Status keseluruhan: <span id="statusBannerText">menunggu data...</span></div>
+
+<div class="card" style="text-align:center">
+  <button onclick="connectBle()">Sambungkan via Bluetooth (BLE)</button>
+  <div class="status" id="bleStatus">BLE: belum tersambung</div>
+</div>
+
+<details>
+  <summary>Mode WiFi lama (opsional, kalau firmware punya endpoint /data)</summary>
+  <input type="text" id="espUrl" value="http://192.168.4.1">
+  <div class="status" id="status">menghubungkan...</div>
+</details>
+
+<div class="footwrap">
+  <svg viewBox="0 0 720 670" width="100%">
+    <defs>
+      <radialGradient id="g_fsr1">
+        <stop id="g_fsr1_in" offset="0%" stop-color="#16a34a" stop-opacity="0.35"/>
+        <stop id="g_fsr1_mid" offset="55%" stop-color="#16a34a" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#16a34a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="g_fsr2">
+        <stop id="g_fsr2_in" offset="0%" stop-color="#16a34a" stop-opacity="0.35"/>
+        <stop id="g_fsr2_mid" offset="55%" stop-color="#16a34a" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#16a34a" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="g_fsr3">
+        <stop id="g_fsr3_in" offset="0%" stop-color="#16a34a" stop-opacity="0.35"/>
+        <stop id="g_fsr3_mid" offset="55%" stop-color="#16a34a" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#16a34a" stop-opacity="0"/>
+      </radialGradient>
+
+      <!-- Batas sebaran tekanan = siluet kaki (jari + telapak), sedikit
+           dilebarkan di bagian jari supaya nyambung mulus ke telapak -->
+      <clipPath id="footClip">
+        <ellipse cx="203" cy="188" rx="30" ry="42"/>
+        <ellipse cx="245" cy="180" rx="22" ry="38"/>
+        <ellipse cx="279" cy="190" rx="20" ry="35"/>
+        <ellipse cx="307" cy="205" rx="18" ry="32"/>
+        <ellipse cx="330" cy="222" rx="16" ry="30"/>
+        <path d="M244 232 C178 236 165 252 166 274 C167 296 180 310 184 330 C189 356 178 372 176 396 C174 424 186 452 197 476 C206 498 200 520 206 542 C213 568 233 584 258 584 C286 584 305 566 308 536 C310 512 302 486 305 462 C309 430 322 404 326 372 C330 338 322 310 320 282 C318 258 322 238 314 220 C300 226 280 228 262 228 C242 228 222 228 205 232 Z"/>
+      </clipPath>
+    </defs>
+    <ellipse cx="203" cy="188" rx="25" ry="34" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <ellipse cx="245" cy="180" rx="17" ry="30" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <ellipse cx="279" cy="188" rx="15" ry="27" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <ellipse cx="307" cy="202" rx="13" ry="23" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <ellipse cx="330" cy="220" rx="11" ry="19" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <path d="M244 232 C178 236 165 252 166 274 C167 296 180 310 184 330 C189 356 178 372 176 396 C174 424 186 452 197 476 C206 498 200 520 206 542 C213 568 233 584 258 584 C286 584 305 566 308 536 C310 512 302 486 305 462 C309 430 322 404 326 372 C330 338 322 310 320 282 C318 258 322 238 314 220 C300 226 280 228 262 228 C242 228 222 228 205 232 Z"
+      fill="#1e293b" stroke="#475569" stroke-width="1.8"/>
+
+    <circle id="c_ntc1" cx="252" cy="322" r="16" fill="#3b82f6" opacity="0.85"/>
+    <text x="252" y="326" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">T1</text>
+    <circle id="c_ntc2" cx="224" cy="518" r="16" fill="#3b82f6" opacity="0.85"/>
+    <text x="224" y="522" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">T2</text>
+
+    <g clip-path="url(#footClip)">
+      <circle id="glow_fsr1" cx="203" cy="188" r="20" fill="url(#g_fsr1)"/>
+      <circle id="glow_fsr2" cx="196" cy="284" r="20" fill="url(#g_fsr2)"/>
+      <circle id="glow_fsr3" cx="258" cy="536" r="20" fill="url(#g_fsr3)"/>
+    </g>
+
+    <circle id="c_fsr1" cx="203" cy="188" r="20" fill="#16a34a" opacity="0.9"/>
+    <text x="203" y="192" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">HA</text>
+    <circle id="c_fsr2" cx="196" cy="284" r="20" fill="#16a34a" opacity="0.9"/>
+    <text x="196" y="288" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">M1</text>
+    <circle id="c_fsr3" cx="258" cy="536" r="20" fill="#16a34a" opacity="0.9"/>
+    <text x="258" y="540" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">HE</text>
+
+    <text id="t_fsr1" x="203" y="150" text-anchor="middle" font-size="12" fill="#e2e8f0">--</text>
+    <text id="t_fsr2" x="150" y="284" text-anchor="middle" font-size="12" fill="#e2e8f0">--</text>
+    <text id="t_fsr3" x="258" y="600" text-anchor="middle" font-size="12" fill="#e2e8f0">--</text>
+    <text id="t_ntc1" x="330" y="326" text-anchor="start" font-size="12" fill="#e2e8f0">--</text>
+    <text id="t_ntc2" x="170" y="518" text-anchor="end" font-size="12" fill="#e2e8f0">--</text>
+
+    <text id="bdg_fsr1" x="203" y="136" text-anchor="middle" font-size="9" font-weight="bold" fill="#94a3b8">--</text>
+    <text id="bdg_fsr2" x="150" y="268" text-anchor="middle" font-size="9" font-weight="bold" fill="#94a3b8">--</text>
+    <text id="bdg_fsr3" x="258" y="616" text-anchor="middle" font-size="9" font-weight="bold" fill="#94a3b8">--</text>
+    <text id="bdg_ntc1" x="330" y="342" text-anchor="start" font-size="9" font-weight="bold" fill="#94a3b8">--</text>
+    <text id="bdg_ntc2" x="170" y="534" text-anchor="end" font-size="9" font-weight="bold" fill="#94a3b8">--</text>
+  </svg>
+  <div class="legend">
+    <span><span class="swatch" style="background:#16a34a"></span>Aman</span>
+    <span><span class="swatch" style="background:#f59e0b"></span>Perhatian</span>
+    <span><span class="swatch" style="background:#dc2626"></span>Risiko</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="infogrid">
+    <div class="infobox"><div class="lbl">Kelembapan</div><div class="val" id="v_rh">-- %</div></div>
+    <div class="infobox"><div class="lbl">Langkah</div><div class="val" id="v_steps">--</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="baselinerow" id="baselineInfo">Baseline suhu: memuat...</div>
+  <button onclick="setBaselineSekarang()">Set baseline suhu sekarang</button>
+  <p style="font-size:11px;color:#64748b;margin:6px 0 0">Tangkap baseline saat kaki dalam kondisi normal/istirahat (idealnya pagi hari, sebelum aktivitas). Dipakai buat deteksi kenaikan suhu lokal (indikasi inflamasi/pre-ulkus) - tersimpan di browser ini dan TIDAK berubah otomatis, hanya lewat tombol ini.</p>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Pengaturan kalibrasi (opsional, isi kalau sudah kalibrasi)</summary>
+    <div class="settingrow"><label>FSR1 A</label><input id="s_fa1" type="number" step="any"></div>
+    <div class="settingrow"><label>FSR1 B</label><input id="s_fb1" type="number" step="any"></div>
+    <div class="settingrow"><label>FSR2 A</label><input id="s_fa2" type="number" step="any"></div>
+    <div class="settingrow"><label>FSR2 B</label><input id="s_fb2" type="number" step="any"></div>
+    <div class="settingrow"><label>FSR3 A</label><input id="s_fa3" type="number" step="any"></div>
+    <div class="settingrow"><label>FSR3 B</label><input id="s_fb3" type="number" step="any"></div>
+    <div class="settingrow"><label>Luas kontak (cm&sup2;)</label><input id="s_area" type="number" step="any" value="1.13"></div>
+    <div class="settingrow"><label>NTC1 Beta</label><input id="s_beta1" type="number" step="any" value="3950"></div>
+    <div class="settingrow"><label>NTC2 Beta</label><input id="s_beta2" type="number" step="any" value="3950"></div>
+    <button onclick="simpanPengaturan()">Simpan pengaturan</button>
+    <p style="font-size:11px;color:#64748b;margin:8px 0 0">Belum tau angka FSR A/B yang benar? Pakai <a href="kalibrasi.html" style="color:#60a5fa">halaman kalibrasi FSR</a> - lebih terpandu, hasilnya otomatis kepakai di sini.</p>
+  </details>
+</div>
+
+<script>
+const VCC = 3300.0, RM = 10000.0;
+const NTC_R0 = 10000.0, NTC_T0K = 298.15;
+const P_WARN = 200, P_RISK = 250;
+
+function baseUrl(){ return document.getElementById('espUrl').value.replace(/\/$/, ''); }
+
+const defaultSettings = { fa1:0.018, fb1:0, fa2:0.018, fb2:0, fa3:0.018, fb3:0, area:1.13, beta1:3950, beta2:3950, baseline1:null, baseline2:null };
+function muatPengaturan(){
+  let s = defaultSettings;
+  try { const saved = JSON.parse(localStorage.getItem('insoleSettings')); if (saved) s = {...defaultSettings, ...saved}; } catch(e){}
+  document.getElementById('s_fa1').value = s.fa1;
+  document.getElementById('s_fb1').value = s.fb1;
+  document.getElementById('s_fa2').value = s.fa2;
+  document.getElementById('s_fb2').value = s.fb2;
+  document.getElementById('s_fa3').value = s.fa3;
+  document.getElementById('s_fb3').value = s.fb3;
+  document.getElementById('s_area').value = s.area;
+  document.getElementById('s_beta1').value = s.beta1;
+  document.getElementById('s_beta2').value = s.beta2;
+  return s;
+}
+function bacaPengaturan(){
+  return {
+    fa1: parseFloat(document.getElementById('s_fa1').value)||0,
+    fb1: parseFloat(document.getElementById('s_fb1').value)||0,
+    fa2: parseFloat(document.getElementById('s_fa2').value)||0,
+    fb2: parseFloat(document.getElementById('s_fb2').value)||0,
+    fa3: parseFloat(document.getElementById('s_fa3').value)||0,
+    fb3: parseFloat(document.getElementById('s_fb3').value)||0,
+    area: parseFloat(document.getElementById('s_area').value)||1.13,
+    beta1: parseFloat(document.getElementById('s_beta1').value)||3950,
+    beta2: parseFloat(document.getElementById('s_beta2').value)||3950,
+    // baseline tidak punya input manual - dipertahankan dari cfg supaya tidak
+    // ikut tertimpa kosong tiap kali tombol "Simpan pengaturan" kalibrasi ditekan
+    baseline1: cfg ? cfg.baseline1 : null,
+    baseline2: cfg ? cfg.baseline2 : null,
+  };
+}
+function simpanPengaturan(){
+  localStorage.setItem('insoleSettings', JSON.stringify(bacaPengaturan()));
+  alert('Pengaturan disimpan di browser ini.');
+}
+let cfg = muatPengaturan();
+
+// Suhu terakhir yang diterima (dari BLE atau WiFi), dipakai sebagai nilai
+// yang ditangkap saat tombol "Set baseline suhu sekarang" ditekan.
+let lastSuhu = { t1: NaN, t2: NaN };
+
+function tampilkanBaseline(){
+  const fmt = v => (v === null || v === undefined || isNaN(v)) ? 'belum diset' : v.toFixed(1) + ' C';
+  document.getElementById('baselineInfo').innerText =
+    'Baseline T1: ' + fmt(cfg.baseline1) + '  |  Baseline T2: ' + fmt(cfg.baseline2);
+}
+function setBaselineSekarang(){
+  if (isNaN(lastSuhu.t1) && isNaN(lastSuhu.t2)) {
+    alert('Belum ada data suhu masuk. Sambungkan BLE/WiFi dulu, tunggu angka suhu muncul, baru set baseline.');
+    return;
+  }
+  const t1 = isNaN(lastSuhu.t1) ? null : lastSuhu.t1;
+  const t2 = isNaN(lastSuhu.t2) ? null : lastSuhu.t2;
+  if (!confirm('Set baseline suhu ke nilai saat ini?\nT1 = ' + (t1===null?'--':t1.toFixed(1)+' C') + '\nT2 = ' + (t2===null?'--':t2.toFixed(1)+' C'))) return;
+  if (t1 !== null) cfg.baseline1 = t1;
+  if (t2 !== null) cfg.baseline2 = t2;
+  localStorage.setItem('insoleSettings', JSON.stringify(bacaPengaturan()));
+  tampilkanBaseline();
+}
+tampilkanBaseline();
+
+function mvKeKpa(mv, A, B, areaCm2){
+  if (mv < 1) return 0; // mendekati 0V = FSR tanpa beban (resistansi sangat besar)
+  // Ditekan makin keras -> resistansi FSR turun -> mV NAIK mendekati VCC (bukan
+  // sebaliknya). Jadi mv mendekati/menyentuh VCC = tekanan SANGAT TINGGI, bukan
+  // error. Clamp sedikit di bawah VCC (bukan return 0) supaya tetap terhitung
+  // sbg tekanan tinggi, tapi tidak divide-by-zero/Infinity di r = RM*(VCC/mv-1).
+  if (mv >= VCC) mv = VCC - 0.5;
+  const r = RM * (VCC / mv - 1.0);
+  const g = 1e6 / r;
+  const f = A * g + B;
+  if (f <= 0) return 0;
+  const areaM2 = areaCm2 * 1e-4;
+  return (f / areaM2) / 1000.0;
+}
+
+function mvKeSuhu(mv, beta){
+  if (mv < 1 || mv >= VCC) return NaN;
+  const r = RM * (VCC / mv - 1.0);
+  const invT = 1.0/NTC_T0K + (1.0/beta) * Math.log(r / NTC_R0);
+  return (1.0/invT) - 273.15;
+}
+
+function warnaTekanan(kpa){
+  if (kpa >= P_RISK) return '#dc2626';
+  if (kpa >= P_WARN) return '#f59e0b';
+  return '#16a34a';
+}
+
+function warnaSuhu(t){
+  const frac = Math.max(0, Math.min(1, (t - 25) / 15));
+  const r = Math.round(59 + frac*(220-59));
+  const g = Math.round(130 - frac*100);
+  const b = Math.round(246 - frac*200);
+  return `rgb(${r},${g},${b})`;
+}
+
+function updateLingkaran(id, kpa){
+  const el = document.getElementById(id);
+  const rBase = 14, rMax = 30;
+  const rr = Math.min(rMax, rBase + kpa/15);
+  el.setAttribute('r', rr);
+  el.setAttribute('fill', warnaTekanan(kpa));
+}
+
+// Titik indikator (radius kecil) tetap dari updateLingkaran(); fungsi ini
+// menggerakkan "sebaran" tekanan (glow radial gradient) di belakangnya -
+// makin besar tekanan, sebarannya makin melebar & makin pekat.
+function updateSebaran(idGlow, idStopDalam, idStopTengah, kpa){
+  const warna = warnaTekanan(kpa);
+  const frac = Math.min(1, kpa / P_RISK); // 0 (tanpa tekanan) - 1 (level risiko)
+
+  const rBase = 20, rMax = 160; // dipotong clip-path #footClip, jadi aman melebar lebih jauh
+  document.getElementById(idGlow).setAttribute('r', rBase + frac * (rMax - rBase));
+
+  const stopDalam = document.getElementById(idStopDalam);
+  const stopTengah = document.getElementById(idStopTengah);
+  stopDalam.setAttribute('stop-color', warna);
+  stopDalam.setAttribute('stop-opacity', (0.25 + frac * 0.55).toFixed(2));
+  stopTengah.setAttribute('stop-color', warna);
+  stopTengah.setAttribute('stop-opacity', (0.12 + frac * 0.35).toFixed(2));
+}
+
+// Dipakai bareng oleh jalur WiFi (fetch /data) dan BLE (notify)
+function terapkanTekanan(kpa1, kpa2, kpa3){
+  updateLingkaran('c_fsr1', kpa1);
+  updateLingkaran('c_fsr2', kpa2);
+  updateLingkaran('c_fsr3', kpa3);
+  updateSebaran('glow_fsr1', 'g_fsr1_in', 'g_fsr1_mid', kpa1);
+  updateSebaran('glow_fsr2', 'g_fsr2_in', 'g_fsr2_mid', kpa2);
+  updateSebaran('glow_fsr3', 'g_fsr3_in', 'g_fsr3_mid', kpa3);
+  document.getElementById('t_fsr1').textContent = kpa1.toFixed(0) + ' kPa';
+  document.getElementById('t_fsr2').textContent = kpa2.toFixed(0) + ' kPa';
+  document.getElementById('t_fsr3').textContent = kpa3.toFixed(0) + ' kPa';
+}
+
+function terapkanSuhu(t1, t2){
+  document.getElementById('c_ntc1').setAttribute('fill', warnaSuhu(t1));
+  document.getElementById('c_ntc2').setAttribute('fill', warnaSuhu(t2));
+  document.getElementById('t_ntc1').textContent = isNaN(t1) ? '--' : t1.toFixed(1) + ' C';
+  document.getElementById('t_ntc2').textContent = isNaN(t2) ? '--' : t2.toFixed(1) + ' C';
+  lastSuhu.t1 = t1;
+  lastSuhu.t2 = t2;
+}
+
+// ==========================================================================
+// Logika deteksi risiko (spesifikasi: spesifikasi_logika_deteksi.md)
+// Dijalankan di web app (bukan firmware) supaya berlaku sama utk jalur BLE
+// maupun WiFi - evaluasiAlert() dipanggil oleh KEDUANYA setelah nilai fisik
+// (kPa/°C) didapat, jadi tidak ada logika dobel.
+// ==========================================================================
+const P_SUSTAIN_KPA = 5.0;         // ~35 mmHg, ambang tekanan statis
+// 10 menit secara default. Untuk TES CEPAT tanpa edit kode: buka halaman ini
+// dengan ?sustainMs=10000 di alamatnya (misal http://localhost/index.html?sustainMs=10000)
+// supaya alert_sustain terpicu dlm 10 detik, bukan 10 menit.
+const SUSTAIN_DURATION_MS = (() => {
+  const v = parseInt(new URLSearchParams(location.search).get('sustainMs'));
+  return (!isNaN(v) && v > 0) ? v : 600000;
+})();
+const TEMP_DELTA_ALERT = 2.2;      // °C, selisih vs baseline
+const RH_HIGH_WARN = 70.0;         // %RH
+
+// STATE per sensor FSR - harus bertahan antar-panggilan (bukan lokal fungsi).
+const sensorState = {
+  ha: { waktuMulaiTinggi: null, alertSustain: false, ptiHarian: 0, tanggalPti: new Date().toDateString() },
+  m1: { waktuMulaiTinggi: null, alertSustain: false, ptiHarian: 0, tanggalPti: new Date().toDateString() },
+  he: { waktuMulaiTinggi: null, alertSustain: false, ptiHarian: 0, tanggalPti: new Date().toDateString() },
+};
+let waktuSampelPtiSebelumnya = null; // dipakai bareng oleh HA/M1/HE utk hitung delta_waktu PTI
+
+function statusPuncak(kpa){
+  if (kpa >= P_RISK) return 'RISIKO';
+  if (kpa >= P_WARN) return 'PERHATIAN';
+  return 'AMAN';
+}
+
+function evaluasiSustain(state, kpa, sekarang){
+  if (kpa >= P_SUSTAIN_KPA) {
+    if (state.waktuMulaiTinggi === null) state.waktuMulaiTinggi = sekarang;
+    if (sekarang - state.waktuMulaiTinggi >= SUSTAIN_DURATION_MS) state.alertSustain = true;
+  } else {
+    state.waktuMulaiTinggi = null; // kaki "istirahat"/beban digeser -> reset
+    state.alertSustain = false;
+  }
+}
+
+function evaluasiPti(state, kpa, deltaDetik){
+  const tanggalSekarang = new Date().toDateString();
+  if (tanggalSekarang !== state.tanggalPti) {
+    state.ptiHarian = 0; // ganti hari -> reset akumulasi
+    state.tanggalPti = tanggalSekarang;
+  }
+  if (deltaDetik !== null) state.ptiHarian += kpa * deltaDetik; // kPa*detik
+}
+
+function statusGabunganFsr(puncak, alertSustain){
+  if (puncak === 'RISIKO') return 'RISIKO_TINGGI';
+  if (alertSustain) return 'TEKANAN_BERTAHAN';
+  if (puncak === 'PERHATIAN') return 'PERHATIAN';
+  return 'AMAN';
+}
+
+// kpaHA/kpaM1/kpaHE dan suhuT1/suhuT2 HARUS sudah dalam satuan fisik akhir
+// (kPa, °C) - bukan mV mentah. rh dalam %RH (boleh undefined kalau sensor
+// kelembapan tidak tersedia di jalur data yang sedang dipakai).
+function evaluasiAlert(kpaHA, kpaM1, kpaHE, suhuT1, suhuT2, rh){
+  const sekarang = Date.now();
+  let deltaDetik = null;
+  if (waktuSampelPtiSebelumnya !== null) {
+    deltaDetik = (sekarang - waktuSampelPtiSebelumnya) / 1000;
+    // lompatan waktu tidak wajar (tab background lama dibiarkan lalu aktif
+    // lagi, jam sistem berubah, dst) - lewati supaya PTI tidak melonjak salah
+    if (deltaDetik < 0 || deltaDetik > 60) deltaDetik = null;
+  }
+  waktuSampelPtiSebelumnya = sekarang;
+
+  const kpaPerSensor = { ha: kpaHA, m1: kpaM1, he: kpaHE };
+  const hasilFsr = {};
+  for (const kunci of ['ha', 'm1', 'he']) {
+    const kpa = kpaPerSensor[kunci];
+    const state = sensorState[kunci];
+    const puncak = statusPuncak(kpa);
+    evaluasiSustain(state, kpa, sekarang);
+    evaluasiPti(state, kpa, deltaDetik);
+    hasilFsr[kunci] = {
+      kpa,
+      statusPuncak: puncak,
+      alertSustain: state.alertSustain,
+      ptiHarian: state.ptiHarian,
+      status: statusGabunganFsr(puncak, state.alertSustain),
+    };
+  }
+
+  const suhuPerSensor = { t1: suhuT1, t2: suhuT2 };
+  const baselinePerSensor = { t1: cfg.baseline1, t2: cfg.baseline2 };
+  const hasilNtc = {};
+  for (const kunci of ['t1', 't2']) {
+    const suhu = suhuPerSensor[kunci];
+    const baseline = baselinePerSensor[kunci];
+    let delta = NaN, alert = false;
+    if (!isNaN(suhu) && baseline !== null && baseline !== undefined && !isNaN(baseline)) {
+      delta = suhu - baseline;
+      alert = delta >= TEMP_DELTA_ALERT;
+    }
+    hasilNtc[kunci] = { suhu, delta, alert, status: alert ? 'SUHU_NAIK' : 'NORMAL' };
+  }
+
+  const alertHumid = (rh !== undefined && !isNaN(rh) && rh >= RH_HIGH_WARN);
+
+  const adaRisikoFsr = Object.values(hasilFsr).some(f => f.status === 'RISIKO_TINGGI' || f.status === 'TEKANAN_BERTAHAN');
+  const adaSuhuNaik = Object.values(hasilNtc).some(n => n.status === 'SUHU_NAIK');
+  const adaPerhatianFsr = Object.values(hasilFsr).some(f => f.status === 'PERHATIAN');
+
+  let statusKeseluruhan;
+  if (adaRisikoFsr || adaSuhuNaik) statusKeseluruhan = 'RISIKO';
+  else if (adaPerhatianFsr || alertHumid) statusKeseluruhan = 'PERHATIAN';
+  else statusKeseluruhan = 'AMAN';
+
+  return {
+    fsr: hasilFsr,
+    ntc: hasilNtc,
+    humidity: { rh, alert: alertHumid, status: alertHumid ? 'LEMBAP_TINGGI' : 'NORMAL' },
+    statusKeseluruhan,
+  };
+}
+
+function warnaStatusFsr(status){
+  if (status === 'RISIKO_TINGGI' || status === 'TEKANAN_BERTAHAN') return '#dc2626';
+  if (status === 'PERHATIAN') return '#f59e0b';
+  return '#16a34a';
+}
+function labelStatusFsr(status){
+  if (status === 'RISIKO_TINGGI') return 'RISIKO';
+  if (status === 'TEKANAN_BERTAHAN') return 'TEKANAN BERTAHAN';
+  if (status === 'PERHATIAN') return 'PERHATIAN';
+  return 'AMAN';
+}
+function warnaStatusNtc(status){ return status === 'SUHU_NAIK' ? '#dc2626' : '#16a34a'; }
+function labelStatusNtc(status){ return status === 'SUHU_NAIK' ? 'SUHU NAIK' : 'NORMAL'; }
+
+function tampilkanBadge(id, teks, warna){
+  const el = document.getElementById(id);
+  el.textContent = teks;
+  el.setAttribute('fill', warna);
+}
+
+function tampilkanEvaluasi(hasil){
+  tampilkanBadge('bdg_fsr1', labelStatusFsr(hasil.fsr.ha.status), warnaStatusFsr(hasil.fsr.ha.status));
+  tampilkanBadge('bdg_fsr2', labelStatusFsr(hasil.fsr.m1.status), warnaStatusFsr(hasil.fsr.m1.status));
+  tampilkanBadge('bdg_fsr3', labelStatusFsr(hasil.fsr.he.status), warnaStatusFsr(hasil.fsr.he.status));
+  tampilkanBadge('bdg_ntc1', labelStatusNtc(hasil.ntc.t1.status), warnaStatusNtc(hasil.ntc.t1.status));
+  tampilkanBadge('bdg_ntc2', labelStatusNtc(hasil.ntc.t2.status), warnaStatusNtc(hasil.ntc.t2.status));
+
+  document.getElementById('v_rh').style.color = hasil.humidity.alert ? '#f87171' : '';
+
+  const banner = document.getElementById('statusBanner');
+  banner.className = 'statusbanner ' + hasil.statusKeseluruhan.toLowerCase();
+  document.getElementById('statusBannerText').textContent = hasil.statusKeseluruhan;
+}
+
+async function refresh(){
+  const st = document.getElementById('status');
+  try {
+    const r = await fetch(baseUrl() + '/data');
+    const d = await r.json();
+    st.innerText = 'WiFi: tersambung ke ESP32';
+    st.className = 'status ok';
+
+    const kpaHA = haluskanKpa(emaKpa, 'ha', mvKeKpa(d.fsr1, cfg.fa1, cfg.fb1, cfg.area));
+    const kpaM1 = haluskanKpa(emaKpa, 'm1', mvKeKpa(d.fsr2, cfg.fa2, cfg.fb2, cfg.area));
+    const kpaHE = haluskanKpa(emaKpa, 'he', mvKeKpa(d.fsr3, cfg.fa3, cfg.fb3, cfg.area));
+    terapkanTekanan(kpaHA, kpaM1, kpaHE);
+
+    // Catatan: firmware WiFi legacy (/data) tidak ditemukan di file .ino yang
+    // dilampirkan sbg referensi, jadi asumsi "ntc1/ntc2 = mV mentah" di bawah
+    // ini TIDAK terverifikasi dari kode firmware - hanya konsisten dgn pola
+    // yang sudah dipakai jalur ini sebelumnya. Cek ulang kalau firmware WiFi
+    // ternyata mengirim °C langsung (baca komentar di dekat definisi refresh()).
+    const suhuT1 = mvKeSuhu(d.ntc1, cfg.beta1);
+    const suhuT2 = mvKeSuhu(d.ntc2, cfg.beta2);
+    terapkanSuhu(suhuT1, suhuT2);
+
+    if (d.rh !== undefined) document.getElementById('v_rh').innerText = d.rh.toFixed(0) + ' %';
+    if (d.steps !== undefined) document.getElementById('v_steps').innerText = d.steps;
+
+    tampilkanEvaluasi(evaluasiAlert(kpaHA, kpaM1, kpaHE, suhuT1, suhuT2, d.rh));
+  } catch(e) {
+    st.innerText = 'WiFi: tidak bisa hubungi ESP32 (endpoint /data)';
+    st.className = 'status bad';
+  }
+  setTimeout(refresh, 500);
+}
+refresh();
+
+// ==========================================================================
+// BLE (Web Bluetooth) - baca data langsung dari ESP32 lewat Nordic UART
+// Service (NUS), sesuai firmware Serial+BLE Smart Insole.
+// Format data yang dikirim ESP32 (CSV per notify), contoh:
+//   F1:1234,F2:1180,F3:1502,T1:29.4,T2:30.1,RH:55.2,TA:28.0,AX:0.01,AY:0.02,AZ:0.98
+// F1-F3 = mV mentah FSR (dikonversi ke kPa di sini pakai kalibrasi A/B di atas)
+// T1/T2 = suhu NTC (°C, sudah dihitung ESP pakai Beta default 3950)
+// ==========================================================================
+const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_CHAR_TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+let bleDevice = null, bleChar = null;
+
+function setBleStatus(teks, ok){
+  const el = document.getElementById('bleStatus');
+  el.innerText = 'BLE: ' + teks;
+  el.className = 'status ' + (ok ? 'ok' : 'bad');
+}
+
+async function connectBle(){
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth tidak didukung browser ini. Pakai Chrome/Edge (desktop atau Android), dan buka halaman lewat http://localhost atau HTTPS, bukan file://.');
+    return;
+  }
+  try {
+    setBleStatus('mencari perangkat...', true);
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [BLE_SERVICE_UUID] }]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onBleDisconnected);
+
+    const server = await bleDevice.gatt.connect();
+    const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+    bleChar = await service.getCharacteristic(BLE_CHAR_TX_UUID);
+    await bleChar.startNotifications();
+    bleChar.addEventListener('characteristicvaluechanged', onBleData);
+
+    setBleStatus('tersambung ke ' + (bleDevice.name || 'Smart Insole BLE'), true);
+  } catch (e) {
+    setBleStatus('gagal konek (' + e.message + ')', false);
+  }
+}
+
+function onBleDisconnected(){
+  setBleStatus('terputus', false);
+}
+
+// EMA (exponential moving average) buat redam jitter kPa akibat noise ADC/BLE -
+// alpha kecil = lebih halus tapi agak lambat mengikuti perubahan beban asli.
+const EMA_ALPHA = 0.25;
+const emaKpa = { ha: null, m1: null, he: null };
+function haluskanKpa(state, key, nilai){
+  state[key] = (state[key] === null) ? nilai : (EMA_ALPHA * nilai + (1 - EMA_ALPHA) * state[key]);
+  return state[key];
+}
+
+function onBleData(event){
+  const teks = new TextDecoder().decode(event.target.value);
+  const d = {};
+  for (const bagian of teks.split(',')) {
+    const [k, v] = bagian.split(':');
+    if (k && v !== undefined) d[k] = parseFloat(v);
+  }
+
+  // Firmware terbaru sudah kirim P1/P2/P3 = kPa siap pakai (kalibrasi + EMA di
+  // ESP32). Kalau ada, pakai langsung - jangan dihitung/dihaluskan ulang di sini
+  // (dobel EMA cuma nambah lag). Fallback ke hitung dari mV mentah (F1-F3) utk
+  // kompatibilitas dgn firmware lama yang belum kirim P1-P3.
+  const kpaHA = (d.P1 !== undefined) ? d.P1 : haluskanKpa(emaKpa, 'ha', mvKeKpa(d.F1, cfg.fa1, cfg.fb1, cfg.area));
+  const kpaM1 = (d.P2 !== undefined) ? d.P2 : haluskanKpa(emaKpa, 'm1', mvKeKpa(d.F2, cfg.fa2, cfg.fb2, cfg.area));
+  const kpaHE = (d.P3 !== undefined) ? d.P3 : haluskanKpa(emaKpa, 'he', mvKeKpa(d.F3, cfg.fa3, cfg.fb3, cfg.area));
+  terapkanTekanan(kpaHA, kpaM1, kpaHE);
+  terapkanSuhu(d.T1, d.T2); // sudah dalam Celsius dari ESP32, langsung dipakai
+
+  if (d.RH !== undefined) document.getElementById('v_rh').innerText = d.RH.toFixed(0) + ' %';
+
+  tampilkanEvaluasi(evaluasiAlert(kpaHA, kpaM1, kpaHE, d.T1, d.T2, d.RH));
+}
+</script>
+</body>
+</html>
